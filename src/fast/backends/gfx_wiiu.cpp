@@ -82,6 +82,14 @@ static MEMHeapHandle heap_foreground = nullptr;
 std::atomic<bool> has_foreground{ false };
 uint64_t gfx_wiiu_perf_vsync_wait_us = 0;
 uint32_t gfx_wiiu_perf_dropped_frames = 0;
+extern "C" {
+uint64_t gfx_wiiu_perf_audio_wait_us = 0;
+uint64_t gfx_wiiu_perf_run_cmds_us = 0;
+uint64_t gfx_wiiu_perf_game_tick_us = 0;
+uint32_t gfx_wiiu_perf_ticks = 0;
+uint32_t gfx_wiiu_perf_audio_core_iterations[3] = {};
+int32_t gfx_wiiu_perf_game_core = -1;
+}
 static void* mem1_storage = nullptr;
 static void* command_buffer_pool = nullptr;
 static void* secondary_command_buffer = nullptr;

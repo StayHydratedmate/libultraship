@@ -1650,6 +1650,12 @@ static void gfx_gx2_enqueue_depth_readback(DrawBufferSlot& slot) {
 // the worst 5-second window, CPU ms per frame and the scene, so a player's log file (logs/) says how the
 // game ran. One SD write a minute. The game may define wiiu_perf_scene() to name the scene.
 extern "C" int wiiu_perf_scene(void) __attribute__((weak));
+extern "C" uint64_t gfx_wiiu_perf_audio_wait_us;
+extern "C" uint64_t gfx_wiiu_perf_run_cmds_us;
+extern "C" uint64_t gfx_wiiu_perf_game_tick_us;
+extern "C" uint32_t gfx_wiiu_perf_ticks;
+extern "C" uint32_t gfx_wiiu_perf_audio_core_iterations[3];
+extern "C" int32_t gfx_wiiu_perf_game_core;
 
 static void gfx_gx2_perf_tick(uint32_t cpu_us) {
     static OSTime minuteStart = 0, windowStart = 0;
@@ -1675,6 +1681,13 @@ static void gfx_gx2_perf_tick(uint32_t cpu_us) {
         minuteFrames = windowFrames = 0;
         cpuSum = 0;
         vsyncWaitUs = 0;
+        gfx_wiiu_perf_audio_wait_us = 0;
+        gfx_wiiu_perf_run_cmds_us = 0;
+        gfx_wiiu_perf_game_tick_us = 0;
+        gfx_wiiu_perf_ticks = 0;
+        gfx_wiiu_perf_audio_core_iterations[0] = gfx_wiiu_perf_audio_core_iterations[1] =
+            gfx_wiiu_perf_audio_core_iterations[2] = 0;
+        gfx_wiiu_perf_game_core = -1;
         droppedFrames = 0;
         depthRequests = 0;
         perf_gpu_us = 0;
@@ -1713,6 +1726,15 @@ static void gfx_gx2_perf_tick(uint32_t cpu_us) {
         const float frames = minuteFrames ? static_cast<float>(minuteFrames) : 1.0f;
         const float cpuMs = cpuSum / 1000.0f / frames;
         const float vsyncMs = vsyncWaitUs / 1000.0f / frames;
+        const float audioWaitMsPerTick = gfx_wiiu_perf_ticks
+                                             ? gfx_wiiu_perf_audio_wait_us / 1000.0f / gfx_wiiu_perf_ticks
+                                             : 0.0f;
+        const float runCmdsMsPerTick = gfx_wiiu_perf_ticks
+                                           ? gfx_wiiu_perf_run_cmds_us / 1000.0f / gfx_wiiu_perf_ticks
+                                           : 0.0f;
+        const float gameTickMs = gfx_wiiu_perf_ticks
+                                     ? gfx_wiiu_perf_game_tick_us / 1000.0f / gfx_wiiu_perf_ticks
+                                     : 0.0f;
         const float slotMs = perf_slot_wait_us / 1000.0f / frames;
         const float intervalMs = minuteSec * 1000.0f / frames;
         const float otherMs = intervalMs - cpuMs - vsyncMs - slotMs;
@@ -1745,7 +1767,7 @@ static void gfx_gx2_perf_tick(uint32_t cpu_us) {
         uint32_t bigFree = 0;
         uint32_t bigLargest = 0;
         wiiu_get_perf_big_heap(&bigFree, &bigLargest);
-        SPDLOG_INFO("PERF: {:.1f} fps avg over {:.0f} s, worst 5 s {:.1f} fps, cpu {:.1f} ms/frame, gpu {:.1f} ms/frame max {:.1f} ms, vsync {:.1f} ms/frame, dropped {}, slot {:.1f} ms/frame, other {:.1f} ms/frame, texUploads {}, texCache {} freeTexIds {} depthCache {} depthReq {:.2f}/frame, GX2Draws {:.2f}/frame triangles {:.2f}/frame GfxSpVertex {:.2f}/frame cullDL {:.1f} tested {:.1f} rejected/frame, rooms {:.1f} tested {:.1f} sideCulled/frame, subDL {:.1f} tested {:.1f} culled/frame, vtxBatch {:.1f} tested {:.1f} culled/frame staleTris {} (subDL {}) falseCull {}, Flush texture {:.2f}/frame sampler {:.2f}/frame shader {:.2f}/frame depthZmode {:.2f}/frame viewportScissor {:.2f}/frame alpha {:.2f}/frame triCap {:.2f}/frame explicit {:.2f}/frame, OSBlockMove {:.1f} us/frame GX2Invalidate {:.1f} us/frame GX2SetAttribBuffer {:.1f} us/frame GX2DrawEx {:.1f} us/frame, shaderPool {} resourceCache {} heapUsed {} heapArena {} bigFree {} bigLargest {} scene {:#x}",
+        SPDLOG_INFO("PERF: {:.1f} fps avg over {:.0f} s, worst 5 s {:.1f} fps, cpu {:.1f} ms/frame, gpu {:.1f} ms/frame max {:.1f} ms, vsync {:.1f} ms/frame, dropped {}, slot {:.1f} ms/frame, other {:.1f} ms/frame, texUploads {}, texCache {} freeTexIds {} depthCache {} depthReq {:.2f}/frame, GX2Draws {:.2f}/frame triangles {:.2f}/frame GfxSpVertex {:.2f}/frame cullDL {:.1f} tested {:.1f} rejected/frame, rooms {:.1f} tested {:.1f} sideCulled/frame, subDL {:.1f} tested {:.1f} culled/frame, vtxBatch {:.1f} tested {:.1f} culled/frame staleTris {} (subDL {}) falseCull {}, Flush texture {:.2f}/frame sampler {:.2f}/frame shader {:.2f}/frame depthZmode {:.2f}/frame viewportScissor {:.2f}/frame alpha {:.2f}/frame triCap {:.2f}/frame explicit {:.2f}/frame, OSBlockMove {:.1f} us/frame GX2Invalidate {:.1f} us/frame GX2SetAttribBuffer {:.1f} us/frame GX2DrawEx {:.1f} us/frame, shaderPool {} resourceCache {} heapUsed {} heapArena {} bigFree {} bigLargest {} scene {:#x}, audioWait {:.3f} ms/tick runCmds {:.3f} ms/tick game {:.3f} ms/tick, ticks {}, audioCore {}/{}/{} iterations, gameCore {}",
                     minuteFrames / minuteSec, minuteSec, worst, cpuMs, gpuMs, perf_gpu_max_us / 1000.0f,
                     vsyncMs, droppedFrames, slotMs, otherMs, perf_texture_uploads,
                     Ship::WiiU::Watchdog::gTextureCacheSize, Ship::WiiU::Watchdog::gFreeTextureIdsSize,
@@ -1758,11 +1780,21 @@ static void gfx_gx2_perf_tick(uint32_t cpu_us) {
                     perf_gx2_invalidate_us / frames, perf_gx2_set_attrib_buffer_us / frames, perf_gx2_draw_ex_us / frames,
                     Ship::WiiU::Watchdog::gShaderProgramPoolSize,
                     Ship::WiiU::Watchdog::gResourceCacheSize, (uint32_t)heapInfo.uordblks,
-                    (uint32_t)heapInfo.arena, bigFree, bigLargest, wiiu_perf_scene ? wiiu_perf_scene() : -1);
+                    (uint32_t)heapInfo.arena, bigFree, bigLargest, wiiu_perf_scene ? wiiu_perf_scene() : -1,
+                    audioWaitMsPerTick, runCmdsMsPerTick, gameTickMs, gfx_wiiu_perf_ticks,
+                    gfx_wiiu_perf_audio_core_iterations[0], gfx_wiiu_perf_audio_core_iterations[1],
+                    gfx_wiiu_perf_audio_core_iterations[2], gfx_wiiu_perf_game_core);
         minuteStart = windowStart = now;
         minuteFrames = windowFrames = 0;
         cpuSum = 0;
         vsyncWaitUs = 0;
+        gfx_wiiu_perf_audio_wait_us = 0;
+        gfx_wiiu_perf_run_cmds_us = 0;
+        gfx_wiiu_perf_game_tick_us = 0;
+        gfx_wiiu_perf_ticks = 0;
+        gfx_wiiu_perf_audio_core_iterations[0] = gfx_wiiu_perf_audio_core_iterations[1] =
+            gfx_wiiu_perf_audio_core_iterations[2] = 0;
+        gfx_wiiu_perf_game_core = -1;
         droppedFrames = 0;
         depthRequests = 0;
         perf_gpu_us = 0;
