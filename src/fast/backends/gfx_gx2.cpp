@@ -1650,10 +1650,10 @@ static void gfx_gx2_enqueue_depth_readback(DrawBufferSlot& slot) {
 // the worst 5-second window, CPU ms per frame and the scene, so a player's log file (logs/) says how the
 // game ran. One SD write a minute. The game may define wiiu_perf_scene() to name the scene.
 extern "C" int wiiu_perf_scene(void) __attribute__((weak));
-extern "C" std::atomic<uint64_t> gfx_wiiu_perf_audio_wait_us;
-extern "C" std::atomic<uint64_t> gfx_wiiu_perf_run_cmds_us;
-extern "C" std::atomic<uint64_t> gfx_wiiu_perf_game_tick_us;
-extern "C" std::atomic<uint64_t> gfx_wiiu_perf_handoff_wait_us;
+extern "C" std::atomic<uint32_t> gfx_wiiu_perf_audio_wait_us;
+extern "C" std::atomic<uint32_t> gfx_wiiu_perf_run_cmds_us;
+extern "C" std::atomic<uint32_t> gfx_wiiu_perf_game_tick_us;
+extern "C" std::atomic<uint32_t> gfx_wiiu_perf_handoff_wait_us;
 extern "C" std::atomic<uint32_t> gfx_wiiu_perf_ticks;
 extern "C" std::atomic<uint32_t> gfx_wiiu_perf_audio_core_iterations[3];
 extern "C" std::atomic<int32_t> gfx_wiiu_perf_game_core;

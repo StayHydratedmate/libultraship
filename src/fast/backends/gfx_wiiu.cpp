@@ -80,13 +80,13 @@ static MEMHeapHandle heap_MEM1 = nullptr;
 static MEMHeapHandle heap_foreground = nullptr;
 
 std::atomic<bool> has_foreground{ false };
-std::atomic<uint64_t> gfx_wiiu_perf_vsync_wait_us{ 0 };
+std::atomic<uint32_t> gfx_wiiu_perf_vsync_wait_us{ 0 };
 std::atomic<uint32_t> gfx_wiiu_perf_dropped_frames{ 0 };
 extern "C" {
-std::atomic<uint64_t> gfx_wiiu_perf_audio_wait_us{ 0 };
-std::atomic<uint64_t> gfx_wiiu_perf_run_cmds_us{ 0 };
-std::atomic<uint64_t> gfx_wiiu_perf_game_tick_us{ 0 };
-std::atomic<uint64_t> gfx_wiiu_perf_handoff_wait_us{ 0 };
+std::atomic<uint32_t> gfx_wiiu_perf_audio_wait_us{ 0 };
+std::atomic<uint32_t> gfx_wiiu_perf_run_cmds_us{ 0 };
+std::atomic<uint32_t> gfx_wiiu_perf_game_tick_us{ 0 };
+std::atomic<uint32_t> gfx_wiiu_perf_handoff_wait_us{ 0 };
 std::atomic<uint32_t> gfx_wiiu_perf_ticks{ 0 };
 std::atomic<uint32_t> gfx_wiiu_perf_audio_core_iterations[3]{};
 std::atomic<int32_t> gfx_wiiu_perf_game_core{ -1 };
