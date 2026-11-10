@@ -1,3 +1,4 @@
+#include <atomic>
 #define NOMINMAX
 
 #include <unordered_set>
@@ -6093,6 +6094,27 @@ extern "C" int gfx_create_framebuffer(uint32_t width, uint32_t height, uint32_t 
     return Fast::mInstance.lock().get()->CreateFrameBuffer(width, height, native_width, native_height, resize);
 }
 
+#ifdef __WIIU__
+// Render pipeline (gWiiU.RenderPipeline 1): the game thread must not touch the texture cache or free GX2 textures,
+// so its clear requests are deferred to the main (GX2) thread, which runs them before rendering the next packet.
+extern "C" bool wiiu_pipeline_is_game_thread(void) __attribute__((weak));
+static std::atomic<bool> sDeferredTextureCacheClear{ false };
+#endif
+
 extern "C" void gfx_texture_cache_clear() {
+#ifdef __WIIU__
+    if (wiiu_pipeline_is_game_thread != nullptr && wiiu_pipeline_is_game_thread()) {
+        sDeferredTextureCacheClear.store(true, std::memory_order_release);
+        return;
+    }
+#endif
     Fast::mInstance.lock().get()->TextureCacheClear();
+}
+
+extern "C" void gfx_texture_cache_run_deferred_clear(void) {
+#ifdef __WIIU__
+    if (sDeferredTextureCacheClear.exchange(false, std::memory_order_acq_rel)) {
+        Fast::mInstance.lock().get()->TextureCacheClear();
+    }
+#endif
 }

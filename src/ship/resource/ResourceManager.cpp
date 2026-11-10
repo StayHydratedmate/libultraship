@@ -497,9 +497,11 @@ size_t ResourceManager::UnloadResource(const ResourceIdentifier& identifier) {
     std::variant<ResourceLoadError, std::shared_ptr<IResource>> value = nullptr;
     size_t ret = 0;
     // We can only erase the resource if we have any resources for that owner.
-    if (mResourceCache.contains(identifier)) {
+    // contains() runs under the mutex too: with the Wii U render pipeline the main thread inserts into the cache
+    // (lazy interpreter loads) while the game thread unloads.
+    {
         const std::lock_guard<std::mutex> lock(mMutex);
-        if (mResourceCache.erase(identifier) != 0) {
+        if (mResourceCache.contains(identifier) && mResourceCache.erase(identifier) != 0) {
             mCacheGeneration.fetch_add(1, std::memory_order_relaxed);
             WDOG_RESOURCE_CACHE_SIZE(mResourceCache.size());
         }
