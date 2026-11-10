@@ -23,9 +23,15 @@
 
 extern std::atomic<bool> has_foreground;
 extern uint32_t frametime;
-extern uint64_t gfx_wiiu_perf_vsync_wait_us;
-extern uint32_t gfx_wiiu_perf_dropped_frames;
+extern std::atomic<uint64_t> gfx_wiiu_perf_vsync_wait_us;
+extern std::atomic<uint32_t> gfx_wiiu_perf_dropped_frames;
+extern "C" {
+extern std::atomic<uint64_t> gfx_wiiu_perf_handoff_wait_us;
+extern std::atomic<uint32_t> gfx_wiiu_perf_pipeline;
+extern std::atomic<int32_t> gfx_wiiu_perf_scene_tag;
+}
 extern "C" void wiiu_get_perf_big_heap(uint32_t* free_bytes, uint32_t* largest_free_bytes);
+extern "C" void gfx_wiiu_wait_for_render_fence(void);
 
 bool gfx_wiiu_init_mem1(void);
 

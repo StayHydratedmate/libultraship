@@ -151,7 +151,7 @@ class ResourceManager {
     std::shared_ptr<BS::thread_pool> mThreadPool;
     std::mutex mMutex;
     std::atomic<uint32_t> mCacheGeneration = 0;
-    bool mAltAssetsEnabled = false;
+    std::atomic<bool> mAltAssetsEnabled{ false };
     // Private information for which owner and archive are default.
     uintptr_t mDefaultCacheOwner = 0;
     std::shared_ptr<Archive> mDefaultCacheArchive = nullptr;

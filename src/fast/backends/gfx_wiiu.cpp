@@ -80,15 +80,18 @@ static MEMHeapHandle heap_MEM1 = nullptr;
 static MEMHeapHandle heap_foreground = nullptr;
 
 std::atomic<bool> has_foreground{ false };
-uint64_t gfx_wiiu_perf_vsync_wait_us = 0;
-uint32_t gfx_wiiu_perf_dropped_frames = 0;
+std::atomic<uint64_t> gfx_wiiu_perf_vsync_wait_us{ 0 };
+std::atomic<uint32_t> gfx_wiiu_perf_dropped_frames{ 0 };
 extern "C" {
-uint64_t gfx_wiiu_perf_audio_wait_us = 0;
-uint64_t gfx_wiiu_perf_run_cmds_us = 0;
-uint64_t gfx_wiiu_perf_game_tick_us = 0;
-uint32_t gfx_wiiu_perf_ticks = 0;
-uint32_t gfx_wiiu_perf_audio_core_iterations[3] = {};
-int32_t gfx_wiiu_perf_game_core = -1;
+std::atomic<uint64_t> gfx_wiiu_perf_audio_wait_us{ 0 };
+std::atomic<uint64_t> gfx_wiiu_perf_run_cmds_us{ 0 };
+std::atomic<uint64_t> gfx_wiiu_perf_game_tick_us{ 0 };
+std::atomic<uint64_t> gfx_wiiu_perf_handoff_wait_us{ 0 };
+std::atomic<uint32_t> gfx_wiiu_perf_ticks{ 0 };
+std::atomic<uint32_t> gfx_wiiu_perf_audio_core_iterations[3]{};
+std::atomic<int32_t> gfx_wiiu_perf_game_core{ -1 };
+std::atomic<uint32_t> gfx_wiiu_perf_pipeline{ 0 };
+std::atomic<int32_t> gfx_wiiu_perf_scene_tag{ -1 };
 }
 static void* mem1_storage = nullptr;
 static void* command_buffer_pool = nullptr;
@@ -705,7 +708,7 @@ static bool gfx_wiiu_start_frame(void) {
             // before the freeze, this is where it shows, and nothing recorded it.
             static uint32_t timeouts = 0;
             timeouts++;
-            ++gfx_wiiu_perf_dropped_frames;
+            gfx_wiiu_perf_dropped_frames.fetch_add(1, std::memory_order_relaxed);
             if (timeouts <= 5 || (timeouts % 60) == 0) {
                 Ship::WiiU::Watchdog::Emit("GX2: frame dropped, GPU timeout n=%u swap=%u flip=%u\n",
                                            timeouts, swap_count, flip_count);
@@ -723,7 +726,7 @@ static bool gfx_wiiu_start_frame(void) {
         const OSTime wait_start = OSGetSystemTime();
         GX2WaitForVsync();
         const uint64_t wait_microseconds = OSTicksToMicroseconds(OSGetSystemTime() - wait_start);
-        gfx_wiiu_perf_vsync_wait_us += wait_microseconds;
+        gfx_wiiu_perf_vsync_wait_us.fetch_add(wait_microseconds, std::memory_order_relaxed);
         Ship::WiiU::Watchdog::RecordGX2Wait(wait_microseconds > UINT32_MAX ? UINT32_MAX
                                                                           : (uint32_t)wait_microseconds);
     }

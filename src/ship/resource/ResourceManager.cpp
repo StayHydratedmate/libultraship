@@ -13,6 +13,17 @@
 
 namespace Ship {
 
+#ifdef __WIIU__
+extern "C" void wiiu_pipeline_wait_for_resources(void) __attribute__((weak));
+static void WiiUWaitForPipelineResources() {
+    if (wiiu_pipeline_wait_for_resources != nullptr) {
+        wiiu_pipeline_wait_for_resources();
+    }
+}
+#else
+static void WiiUWaitForPipelineResources() {}
+#endif
+
 ResourceFilter::ResourceFilter(const std::list<std::string>& includeMasks, const std::list<std::string>& excludeMasks,
                                const uintptr_t owner, const std::shared_ptr<Archive> parent)
     : IncludeMasks(includeMasks), ExcludeMasks(excludeMasks), Owner(owner), Parent(parent) {
@@ -105,7 +116,8 @@ std::shared_ptr<IResource> ResourceManager::LoadResourceProcess(const ResourceId
 
     // Attempt to load the alternate version of the asset, if we fail then we continue trying to load the standard
     // asset.
-    if (!loadExact && mAltAssetsEnabled && !identifier.Path.starts_with(IResource::gAltAssetPrefix)) {
+    if (!loadExact && mAltAssetsEnabled.load(std::memory_order_acquire) &&
+        !identifier.Path.starts_with(IResource::gAltAssetPrefix)) {
         const auto altPath = IResource::gAltAssetPrefix + identifier.Path;
         auto altResource = LoadResourceProcess({ altPath, identifier.Owner, identifier.Parent }, loadExact, initData);
 
@@ -124,7 +136,8 @@ std::shared_ptr<IResource> ResourceManager::LoadResourceProcess(const ResourceId
 
     // Check for resource load errors which can indicate an alternate asset.
     // If we are attempting to load an alternate asset, we can return null
-    if (!loadExact && mAltAssetsEnabled && identifier.Path.starts_with(IResource::gAltAssetPrefix)) {
+    if (!loadExact && mAltAssetsEnabled.load(std::memory_order_acquire) &&
+        identifier.Path.starts_with(IResource::gAltAssetPrefix)) {
         if (std::holds_alternative<ResourceLoadError>(cacheLine)) {
             try {
                 // If we have attempted to cache an alternate asset, but failed, we return nullptr and rely on the
@@ -262,7 +275,8 @@ std::shared_ptr<IResource> ResourceManager::LoadResource(uint64_t crc, bool load
 
 std::variant<ResourceManager::ResourceLoadError, std::shared_ptr<IResource>>
 ResourceManager::CheckCache(const ResourceIdentifier& identifier, bool loadExact) {
-    if (!loadExact && mAltAssetsEnabled && !identifier.Path.starts_with(IResource::gAltAssetPrefix)) {
+    if (!loadExact && mAltAssetsEnabled.load(std::memory_order_acquire) &&
+        !identifier.Path.starts_with(IResource::gAltAssetPrefix)) {
         const auto altPath = IResource::gAltAssetPrefix + identifier.Path;
         auto altCacheResult = CheckCache({ altPath, identifier.Owner, identifier.Parent }, loadExact);
 
@@ -399,6 +413,7 @@ void ResourceManager::UnloadResources(const ResourceFilter& filter) {
 }
 
 void ResourceManager::UnloadResourcesProcess(const ResourceFilter& filter) {
+    WiiUWaitForPipelineResources();
     // Walk the cache instead of listing every archive path: SoH unloads "alt/*" on EVERY scene change, and listing
     // that meant copying and glob-matching every alt path in every archive (tens of thousands) to find the few
     // thousand cached ones - ~10% of each Wii U area entry (2026-10-03 HPROF). Same entries are unloaded: default
@@ -442,6 +457,7 @@ std::shared_ptr<ResourceLoader> ResourceManager::GetResourceLoader() {
 }
 
 size_t ResourceManager::UnloadResource(const ResourceIdentifier& identifier) {
+    WiiUWaitForPipelineResources();
     // Store a shared pointer here so that erase doesn't destruct the resource.
     // The resource will attempt to load other resources on the destructor, and this will fail because we already hold
     // the mutex.
@@ -497,14 +513,15 @@ bool ResourceManager::OtrSignatureCheck(const char* fileName) {
 }
 
 bool ResourceManager::IsAltAssetsEnabled() {
-    return mAltAssetsEnabled;
+    return mAltAssetsEnabled.load(std::memory_order_acquire);
 }
 
 void ResourceManager::SetAltAssetsEnabled(bool isEnabled) {
-    if (mAltAssetsEnabled != isEnabled) {
+    WiiUWaitForPipelineResources();
+    if (mAltAssetsEnabled.load(std::memory_order_relaxed) != isEnabled) {
         mCacheGeneration.fetch_add(1, std::memory_order_relaxed);
     }
-    mAltAssetsEnabled = isEnabled;
+    mAltAssetsEnabled.store(isEnabled, std::memory_order_release);
 }
 
 uint32_t ResourceManager::GetCacheGeneration() const {

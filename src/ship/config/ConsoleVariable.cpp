@@ -21,11 +21,13 @@ ConsoleVariable::~ConsoleVariable() {
 }
 
 std::shared_ptr<CVar> ConsoleVariable::Get(const char* name) {
+    const std::lock_guard<std::mutex> lock(mMutex);
     auto it = mVariables.find(name);
     return it != mVariables.end() ? it->second : nullptr;
 }
 
 int32_t ConsoleVariable::GetInteger(const char* name, int32_t defaultValue) {
+    const std::lock_guard<std::mutex> lock(mMutex);
     auto it = mVariables.find(name);
     auto* variable = it != mVariables.end() ? it->second.get() : nullptr;
 
@@ -37,6 +39,7 @@ int32_t ConsoleVariable::GetInteger(const char* name, int32_t defaultValue) {
 }
 
 float ConsoleVariable::GetFloat(const char* name, float defaultValue) {
+    const std::lock_guard<std::mutex> lock(mMutex);
     auto it = mVariables.find(name);
     auto* variable = it != mVariables.end() ? it->second.get() : nullptr;
 
@@ -48,17 +51,22 @@ float ConsoleVariable::GetFloat(const char* name, float defaultValue) {
 }
 
 const char* ConsoleVariable::GetString(const char* name, const char* defaultValue) {
+    const std::lock_guard<std::mutex> lock(mMutex);
+    static thread_local std::string value;
     auto it = mVariables.find(name);
     auto* variable = it != mVariables.end() ? it->second.get() : nullptr;
 
     if (variable != nullptr && variable->Type == ConsoleVariableType::String) {
-        return variable->String;
+        value = variable->String != nullptr ? variable->String : "";
+        return value.c_str();
     }
 
-    return defaultValue;
+    value = defaultValue != nullptr ? defaultValue : "";
+    return value.c_str();
 }
 
 Color_RGBA8 ConsoleVariable::GetColor(const char* name, Color_RGBA8 defaultValue) {
+    const std::lock_guard<std::mutex> lock(mMutex);
     auto it = mVariables.find(name);
     auto* variable = it != mVariables.end() ? it->second.get() : nullptr;
 
@@ -77,6 +85,7 @@ Color_RGBA8 ConsoleVariable::GetColor(const char* name, Color_RGBA8 defaultValue
 }
 
 Color_RGB8 ConsoleVariable::GetColor24(const char* name, Color_RGB8 defaultValue) {
+    const std::lock_guard<std::mutex> lock(mMutex);
     auto it = mVariables.find(name);
     auto* variable = it != mVariables.end() ? it->second.get() : nullptr;
 
@@ -94,6 +103,7 @@ Color_RGB8 ConsoleVariable::GetColor24(const char* name, Color_RGB8 defaultValue
 }
 
 void ConsoleVariable::SetInteger(const char* name, int32_t value) {
+    const std::lock_guard<std::mutex> lock(mMutex);
     auto& variable = mVariables[name];
     if (variable == nullptr) {
         variable = std::make_shared<CVar>();
@@ -104,6 +114,7 @@ void ConsoleVariable::SetInteger(const char* name, int32_t value) {
 }
 
 void ConsoleVariable::SetFloat(const char* name, float value) {
+    const std::lock_guard<std::mutex> lock(mMutex);
     auto& variable = mVariables[name];
     if (variable == nullptr) {
         variable = std::make_shared<CVar>();
@@ -114,6 +125,7 @@ void ConsoleVariable::SetFloat(const char* name, float value) {
 }
 
 void ConsoleVariable::SetString(const char* name, const char* value) {
+    const std::lock_guard<std::mutex> lock(mMutex);
     auto& variable = mVariables[name];
     if (variable == nullptr) {
         variable = std::make_shared<CVar>();
@@ -127,6 +139,7 @@ void ConsoleVariable::SetString(const char* name, const char* value) {
 }
 
 void ConsoleVariable::SetColor(const char* name, Color_RGBA8 value) {
+    const std::lock_guard<std::mutex> lock(mMutex);
     auto& variable = mVariables[name];
     if (!variable) {
         variable = std::make_shared<CVar>();
@@ -137,6 +150,7 @@ void ConsoleVariable::SetColor(const char* name, Color_RGBA8 value) {
 }
 
 void ConsoleVariable::SetColor24(const char* name, Color_RGB8 value) {
+    const std::lock_guard<std::mutex> lock(mMutex);
     auto& variable = mVariables[name];
     if (!variable) {
         variable = std::make_shared<CVar>();
@@ -178,7 +192,9 @@ void ConsoleVariable::RegisterColor24(const char* name, Color_RGB8 defaultValue)
 
 void ConsoleVariable::ClearVariable(const char* name) {
     std::shared_ptr<Config> conf = Context::GetInstance()->GetConfig();
-    auto var = Get(name);
+    const std::lock_guard<std::mutex> lock(mMutex);
+    auto it = mVariables.find(name);
+    auto var = it != mVariables.end() ? it->second : nullptr;
     if (var != nullptr) {
         bool color = var->Type == ConsoleVariableType::Color || var->Type == ConsoleVariableType::Color24;
         if (color) {
@@ -213,6 +229,7 @@ void ConsoleVariable::ClearBlock(const char* name) {
 }
 
 void ConsoleVariable::CopyVariable(const char* from, const char* to) {
+    const std::lock_guard<std::mutex> lock(mMutex);
     auto& variableFrom = mVariables[from];
     if (!variableFrom) {
         return;
@@ -247,6 +264,7 @@ void ConsoleVariable::CopyVariable(const char* from, const char* to) {
 
 void ConsoleVariable::Save() {
     std::shared_ptr<Config> conf = Context::GetInstance()->GetConfig();
+    const std::lock_guard<std::mutex> lock(mMutex);
 
     for (const auto& variable : mVariables) {
         const std::string key = StringHelper::Sprintf("CVars.%s", variable.first.c_str());
@@ -284,7 +302,8 @@ void ConsoleVariable::Save() {
 void ConsoleVariable::Load() {
     std::shared_ptr<Config> conf = Context::GetInstance()->GetConfig();
     conf->Reload();
-    if (!mVariables.empty()) {
+    {
+        const std::lock_guard<std::mutex> lock(mMutex);
         mVariables.clear();
     }
 

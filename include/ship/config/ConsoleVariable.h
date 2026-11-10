@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <string>
 #include <string_view>
+#include <mutex>
 
 namespace Ship {
 typedef enum class ConsoleVariableType { Integer, Float, String, Color, Color24 } ConsoleVariableType;
@@ -74,5 +75,6 @@ class ConsoleVariable {
     };
 
     std::unordered_map<std::string, std::shared_ptr<CVar>, TransparentStringHash, std::equal_to<>> mVariables;
+    mutable std::mutex mMutex;
 };
 } // namespace Ship
