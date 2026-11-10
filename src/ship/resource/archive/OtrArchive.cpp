@@ -8,6 +8,14 @@
 #include "ship/resource/archive/ArchiveManager.h"
 
 #include "spdlog/spdlog.h"
+#include <mutex>
+
+// See O2rArchive.cpp: with gWiiU.RenderPipeline 1 several threads read archives; StormLib handles are not
+// safe for concurrent reads, so OTR reads/opens/closes are serialized too.
+static std::recursive_mutex& OtrArchiveIoMutex() {
+    static std::recursive_mutex mutex;
+    return mutex;
+}
 
 namespace Ship {
 OtrArchive::OtrArchive(const std::string& archivePath) : Archive(archivePath) {
@@ -19,6 +27,7 @@ OtrArchive::~OtrArchive() {
 }
 
 std::shared_ptr<File> OtrArchive::LoadFile(const std::string& filePath) {
+    const std::lock_guard<std::recursive_mutex> otrIoLock(OtrArchiveIoMutex());
     if (mHandle == nullptr) {
         SPDLOG_TRACE("Failed to open file {} from mpq archive {}. Archive not open.", filePath, GetPath());
         return nullptr;
@@ -68,6 +77,7 @@ std::shared_ptr<File> OtrArchive::LoadFile(uint64_t hash) {
 }
 
 bool OtrArchive::Open() {
+    const std::lock_guard<std::recursive_mutex> otrIoLock(OtrArchiveIoMutex());
     const bool opened = SFileOpenArchive(GetPath().c_str(), 0, MPQ_OPEN_READ_ONLY, &mHandle);
     if (opened) {
         SPDLOG_INFO("Opened mpq file \"{}\"", GetPath());
@@ -97,6 +107,7 @@ bool OtrArchive::Open() {
 }
 
 bool OtrArchive::Close() {
+    const std::lock_guard<std::recursive_mutex> otrIoLock(OtrArchiveIoMutex());
     bool closed = SFileCloseArchive(mHandle);
     if (!closed) {
         SPDLOG_ERROR("({}) Failed to close mpq {}", GetLastError(), mHandle);
