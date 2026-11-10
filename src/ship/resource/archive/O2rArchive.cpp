@@ -214,12 +214,6 @@ static void O2rCacheClear(const O2rArchive* archive) {
     OSFastMutex_Unlock(&sO2rCacheMutex);
 }
 
-size_t O2rArchive::GetScenePrefetchBytes() {
-    OSFastMutex_Lock(&sO2rCacheMutex);
-    const size_t bytes = sO2rScenePrefetchBytes;
-    OSFastMutex_Unlock(&sO2rCacheMutex);
-    return bytes;
-}
 
 #if WIIU_DIAGNOSTICS
 static void O2rCacheGetStats(uint32_t& hits, uint64_t& hitBytes, size_t& cacheBytes) {
@@ -403,6 +397,13 @@ O2rArchive::HitchStats O2rArchive::GetHitchStats() {
 }
 #endif
 #endif
+
+size_t O2rArchive::GetScenePrefetchBytes() {
+    OSFastMutex_Lock(&sO2rCacheMutex);
+    const size_t bytes = sO2rScenePrefetchBytes;
+    OSFastMutex_Unlock(&sO2rCacheMutex);
+    return bytes;
+}
 
 O2rArchive::O2rArchive(const std::string& archivePath) : Archive(archivePath) {
 }
@@ -689,7 +690,7 @@ bool O2rArchive::GetEntryInfo(const std::string& filePath, size_t& compressedSiz
         return false;
     }
 
-    zip_stat zipEntryStat;
+    struct zip_stat zipEntryStat;
     zip_stat_init(&zipEntryStat);
     if (zip_stat_index(mZipArchive, zipEntryIndex, 0, &zipEntryStat) != 0 || zipEntryStat.size == 0 ||
         (zipEntryStat.comp_method != ZIP_CM_STORE && zipEntryStat.comp_method != ZIP_CM_DEFLATE) ||
@@ -738,7 +739,7 @@ bool O2rArchive::PrefetchFile(const std::string& filePath, size_t remainingBudge
         return false;
     }
 
-    zip_stat zipEntryStat;
+    struct zip_stat zipEntryStat;
     zip_stat_init(&zipEntryStat);
     if (zip_stat_index(mZipArchive, zipEntryIndex, 0, &zipEntryStat) != 0 || zipEntryStat.size == 0 ||
         (zipEntryStat.comp_method != ZIP_CM_STORE && zipEntryStat.comp_method != ZIP_CM_DEFLATE) ||
