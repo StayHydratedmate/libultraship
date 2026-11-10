@@ -9,6 +9,9 @@
 #include <mutex>
 #include <queue>
 #include <variant>
+#ifdef __WIIU__
+#include <functional>
+#endif
 #include "ship/resource/Resource.h"
 #include "ship/resource/ResourceLoader.h"
 #include "ship/resource/archive/Archive.h"
@@ -57,6 +60,9 @@ class ResourceManager {
     typedef enum class ResourceLoadError { None, NotCached, NotFound } ResourceLoadError;
 
   public:
+#ifdef __WIIU__
+    using FileLoadObserver = std::function<void(const std::string&, std::shared_ptr<Archive>)>;
+#endif
     ResourceManager();
     void Init(const std::vector<std::string>& archivePaths, const std::unordered_set<uint32_t>& validHashes,
               int32_t reservedThreadCount = 1);
@@ -119,6 +125,9 @@ class ResourceManager {
     uint32_t GetCacheGeneration() const;
     std::shared_ptr<File> LoadFileProcess(const ResourceIdentifier& identifier);
     std::shared_ptr<File> LoadFileProcess(const std::string& filePath);
+#ifdef __WIIU__
+    void SetFileLoadObserver(FileLoadObserver observer);
+#endif
 
     size_t GetResourceSize(std::shared_ptr<IResource> resource);
     size_t GetResourceSize(const char* name);
@@ -152,6 +161,10 @@ class ResourceManager {
     std::mutex mMutex;
     std::atomic<uint32_t> mCacheGeneration = 0;
     std::atomic<bool> mAltAssetsEnabled{ false };
+#ifdef __WIIU__
+    FileLoadObserver mFileLoadObserver;
+    std::mutex mFileLoadObserverMutex;
+#endif
     // Private information for which owner and archive are default.
     uintptr_t mDefaultCacheOwner = 0;
     std::shared_ptr<Archive> mDefaultCacheArchive = nullptr;

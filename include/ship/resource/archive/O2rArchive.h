@@ -4,6 +4,7 @@
 
 #include <string>
 #include <stdint.h>
+#include <cstddef>
 #include <string>
 
 #include "zip.h"
@@ -35,6 +36,12 @@ class O2rArchive final : virtual public Archive {
 
 #ifdef __WIIU__
     static void GetStats(uint32_t& loads, uint64_t& compressedBytes, uint64_t& microseconds);
+    // Reads one entry's archive bytes into the shared O2R byte cache without invoking a resource
+    // loader or factory. The caller supplies the remaining scene-prefetch budget; the operation
+    // stores either an inflated payload or compressed bytes and returns the cache payload size.
+    bool PrefetchFile(const std::string& filePath, size_t remainingBudget, size_t& storedBytes);
+    bool GetEntryInfo(const std::string& filePath, size_t& compressedSize, size_t& uncompressedSize) const;
+    static size_t GetScenePrefetchBytes();
 #if WIIU_DIAGNOSTICS
     struct HitchArchiveStats {
         char name[32]{};

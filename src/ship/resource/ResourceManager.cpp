@@ -4,6 +4,7 @@
 #include "ship/resource/archive/Archive.h"
 #include <algorithm>
 #include <thread>
+#include <utility>
 #include "ship/utils/StringHelper.h"
 #include "ship/utils/glob.h"
 #include "ship/utils/Utils.h"
@@ -87,9 +88,20 @@ bool ResourceManager::IsLoaded() {
 }
 
 std::shared_ptr<File> ResourceManager::LoadFileProcess(const std::string& filePath) {
+    auto archive = mArchiveManager->GetArchiveFromFile(filePath);
     auto file = mArchiveManager->LoadFile(filePath);
     if (file != nullptr) {
         SPDLOG_TRACE("Loaded File {} on ResourceManager", filePath);
+#ifdef __WIIU__
+        FileLoadObserver observer;
+        {
+            const std::lock_guard<std::mutex> lock(mFileLoadObserverMutex);
+            observer = mFileLoadObserver;
+        }
+        if (observer) {
+            observer(filePath, archive);
+        }
+#endif
     } else {
         SPDLOG_TRACE("Could not load File {} in ResourceManager", filePath);
     }
@@ -104,11 +116,28 @@ std::shared_ptr<File> ResourceManager::LoadFileProcess(const ResourceIdentifier&
     auto file = archive->LoadFile(identifier.Path);
     if (file != nullptr) {
         SPDLOG_TRACE("Loaded File {} on ResourceManager", identifier.Path);
+#ifdef __WIIU__
+        FileLoadObserver observer;
+        {
+            const std::lock_guard<std::mutex> lock(mFileLoadObserverMutex);
+            observer = mFileLoadObserver;
+        }
+        if (observer) {
+            observer(identifier.Path, archive);
+        }
+#endif
     } else {
         SPDLOG_TRACE("Could not load File {} in ResourceManager", identifier.Path);
     }
     return file;
 }
+
+#ifdef __WIIU__
+void ResourceManager::SetFileLoadObserver(FileLoadObserver observer) {
+    const std::lock_guard<std::mutex> lock(mFileLoadObserverMutex);
+    mFileLoadObserver = std::move(observer);
+}
+#endif
 
 std::shared_ptr<IResource> ResourceManager::LoadResourceProcess(const ResourceIdentifier& identifier, bool loadExact,
                                                                 std::shared_ptr<ResourceInitData> initData) {
