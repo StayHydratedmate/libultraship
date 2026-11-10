@@ -8,6 +8,7 @@
 #include "ship/config/ConsoleVariable.h"
 #include "port/wiiu/WiiUWatchdog.h"
 #include <coreinit/fastmutex.h>
+#include <mutex>
 #if WIIU_DIAGNOSTICS
 #include <atomic>
 #include <coreinit/time.h>
@@ -363,6 +364,15 @@ O2rArchive::~O2rArchive() {
     Close();
 }
 
+// Wii U render pipeline (gWiiU.RenderPipeline 1): the main thread (interpreter lazy loads), the game
+// thread (scene/object loads) and the audio thread can all read archives at once. The zip handles, the
+// shared stdio buffers and the fd pool are not safe for concurrent use, so every archive read, open,
+// close and write goes through one recursive lock. Uncontended in the synchronous path.
+static std::recursive_mutex& O2rArchiveIoMutex() {
+    static std::recursive_mutex mutex;
+    return mutex;
+}
+
 std::shared_ptr<File> O2rArchive::LoadFile(uint64_t hash) {
     const std::string& filePath =
         *Context::GetInstance()->GetResourceManager()->GetArchiveManager()->HashToString(hash);
@@ -370,6 +380,7 @@ std::shared_ptr<File> O2rArchive::LoadFile(uint64_t hash) {
 }
 
 std::shared_ptr<File> O2rArchive::LoadFile(const std::string& filePath) {
+    const std::lock_guard<std::recursive_mutex> o2rIoLock(O2rArchiveIoMutex());
 #ifdef __WIIU__
 #if WIIU_DIAGNOSTICS
     O2rLoadTimer loadTimer;
@@ -627,6 +638,7 @@ static bool O2rPreloadCVarsReady() {
 }
 
 bool O2rArchive::Open() {
+    const std::lock_guard<std::recursive_mutex> o2rIoLock(O2rArchiveIoMutex());
 #ifdef __WIIU__
     bool preloaded = false;
     bool preloadReserved = false;
@@ -840,6 +852,7 @@ bool O2rArchive::Open() {
 }
 
 bool O2rArchive::Close() {
+    const std::lock_guard<std::recursive_mutex> o2rIoLock(O2rArchiveIoMutex());
     if (mZipArchive == nullptr) {
         SPDLOG_ERROR("Cannot close zip file. Zip file not loaded. \"{}\"", GetPath());
         return false;
@@ -873,6 +886,7 @@ bool O2rArchive::Close() {
 }
 
 bool O2rArchive::WriteFile(const std::string& filePath, const std::vector<uint8_t>& data) {
+    const std::lock_guard<std::recursive_mutex> o2rIoLock(O2rArchiveIoMutex());
     if (!mZipArchive) {
         SPDLOG_ERROR("Cannot write to zip: Archive is not open.");
         return false;
