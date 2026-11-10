@@ -4,6 +4,7 @@
 
 #include <padscore/kpad.h>
 #include <vpad/input.h>
+#include <coreinit/fastmutex.h>
 #include <spdlog/spdlog.h>
 
 #include "ship/Context.h"
@@ -64,6 +65,18 @@ struct RuntimeState {
 };
 
 RuntimeState runtime;
+OSFastMutex inputMutex;
+
+struct InputMutexGuard {
+    InputMutexGuard() { OSFastMutex_Lock(&inputMutex); }
+    ~InputMutexGuard() { OSFastMutex_Unlock(&inputMutex); }
+};
+
+struct InputMutexInitializer {
+    InputMutexInitializer() { OSFastMutex_Init(&inputMutex, "WiiUInputWrap"); }
+};
+
+InputMutexInitializer inputMutexInitializer;
 
 void ResetInputState() {
     for (VpadCache& cache : runtime.vpad) {
@@ -226,6 +239,7 @@ void LogActiveOnce() {
 
 extern "C" int32_t __wrap_VPADRead(VPADChan chan, VPADStatus* buffers, uint32_t count,
                                     VPADReadError* outError) {
+    InputMutexGuard lock;
     if (count != 1 || buffers == nullptr || outError == nullptr || !IsInputEdgeFixEnabled()) {
         return __real_VPADRead(chan, buffers, count, outError);
     }
@@ -298,6 +312,7 @@ extern "C" int32_t __wrap_VPADRead(VPADChan chan, VPADStatus* buffers, uint32_t 
 }
 
 extern "C" uint32_t __wrap_KPADReadEx(KPADChan chan, KPADStatus* data, uint32_t count, KPADError* error) {
+    InputMutexGuard lock;
     if (count != 1 || data == nullptr || error == nullptr || !IsInputEdgeFixEnabled()) {
         return __real_KPADReadEx(chan, data, count, error);
     }

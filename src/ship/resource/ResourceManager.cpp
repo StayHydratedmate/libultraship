@@ -15,7 +15,11 @@ namespace Ship {
 
 #ifdef __WIIU__
 extern "C" void wiiu_pipeline_wait_for_resources(void) __attribute__((weak));
+extern "C" bool wiiu_pipeline_resource_wait_suppressed(void) __attribute__((weak));
 static void WiiUWaitForPipelineResources() {
+    if (wiiu_pipeline_resource_wait_suppressed != nullptr && wiiu_pipeline_resource_wait_suppressed()) {
+        return;
+    }
     if (wiiu_pipeline_wait_for_resources != nullptr) {
         wiiu_pipeline_wait_for_resources();
     }

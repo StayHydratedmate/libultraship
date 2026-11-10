@@ -406,20 +406,6 @@ static void gfx_gx2_wait_for_draw_buffer_slot(DrawBufferSlot& slot) {
     gfx_gx2_collect_gpu_timing(slot);
 }
 
-// Called only after the SoH packet handoff is idle. Resource destruction may then wait for the
-// latest submitted GX2 timestamp without serializing normal frame production.
-extern "C" void gfx_wiiu_wait_for_render_fence(void) {
-    OSTime retired = GX2GetRetiredTimeStamp();
-    OSTime latest = 0;
-    for (const DrawBufferSlot& slot : draw_buffer_slots) {
-        latest = std::max(latest, slot.submitted_timestamp);
-    }
-    if (latest > retired) {
-        GX2WaitTimeStamp(latest);
-    }
-    gfx_gx2_release_pending_image_frees(false);
-}
-
 static void gfx_gx2_prepare_draw_buffer_slot() {
     DrawBufferSlot& slot = draw_buffer_slots[draw_buffer_slot_index];
     if (draw_buffer_double_buffered) {

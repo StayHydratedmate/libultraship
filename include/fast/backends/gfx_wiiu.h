@@ -31,8 +31,6 @@ extern std::atomic<uint32_t> gfx_wiiu_perf_pipeline;
 extern std::atomic<int32_t> gfx_wiiu_perf_scene_tag;
 }
 extern "C" void wiiu_get_perf_big_heap(uint32_t* free_bytes, uint32_t* largest_free_bytes);
-extern "C" void gfx_wiiu_wait_for_render_fence(void);
-
 bool gfx_wiiu_init_mem1(void);
 
 void gfx_wiiu_destroy_mem1(void);
