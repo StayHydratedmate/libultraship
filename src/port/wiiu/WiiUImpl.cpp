@@ -2478,4 +2478,33 @@ extern "C" void modelRenderWatchdogReportInvalidDisplayList(uint32_t index, uint
 #endif
 }
 
+
+// Render pipeline (gWiiU.RenderPipeline 1): SoH's game loop runs on this native Cafe thread on core 2 while
+// the main thread (GX2Init core) renders. SoH's C code cannot include coreinit/thread.h (libultra OSThread
+// clashes), so the thread lives here. The game loop ran on the main thread before, so it gets a large stack.
+namespace {
+OSThread sGameTickThread;
+alignas(16) uint8_t sGameTickStack[1024 * 1024];
+void (*sGameTickEntry)(void) = nullptr;
+int GameTickMain(int, const char**) {
+    sGameTickEntry();
+    return 0;
+}
+} // namespace
+
+extern "C" bool wiiu_start_game_tick_thread(void (*entry)(void)) {
+    sGameTickEntry = entry;
+    if (!OSCreateThread(&sGameTickThread, GameTickMain, 0, nullptr, sGameTickStack + sizeof(sGameTickStack),
+                        sizeof(sGameTickStack), 16, OS_THREAD_ATTRIB_AFFINITY_CPU2)) {
+        return false;
+    }
+    OSSetThreadName(&sGameTickThread, "SoH game tick");
+    OSResumeThread(&sGameTickThread);
+    return true;
+}
+
+extern "C" void wiiu_join_game_tick_thread(void) {
+    OSJoinThread(&sGameTickThread, nullptr);
+}
+
 #endif
