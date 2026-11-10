@@ -26,8 +26,8 @@
 
 #include "port/wiiu/WiiUWatchdog.h"
 
+#include <coreinit/thread.h> // also used by the render-pipeline game-tick thread in release builds
 #if WIIU_DIAGNOSTICS
-#include <coreinit/thread.h>
 #include <coreinit/alarm.h>
 #include <coreinit/dynload.h>
 #include <coreinit/time.h>
