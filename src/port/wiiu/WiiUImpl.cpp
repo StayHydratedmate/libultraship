@@ -26,6 +26,7 @@
 
 #include "port/wiiu/WiiUWatchdog.h"
 
+#include <pthread.h>
 #include <coreinit/thread.h> // also used by the render-pipeline game-tick thread in release builds
 #if WIIU_DIAGNOSTICS
 #include <coreinit/alarm.h>
@@ -2479,32 +2480,41 @@ extern "C" void modelRenderWatchdogReportInvalidDisplayList(uint32_t index, uint
 }
 
 
-// Render pipeline (gWiiU.RenderPipeline 1): SoH's game loop runs on this native Cafe thread on core 2 while
-// the main thread (GX2Init core) renders. SoH's C code cannot include coreinit/thread.h (libultra OSThread
-// clashes), so the thread lives here. The game loop ran on the main thread before, so it gets a large stack.
+// Render pipeline (gWiiU.RenderPipeline 1): SoH's game loop runs on this thread, pinned to core 2, while the
+// main thread (GX2Init core) renders. It is created through pthreads, not raw OSCreateThread: wut's
+// std::mutex/std::condition_variable rely on per-thread state its thread wrapper sets up, and a raw
+// OSCreateThread game thread lost a condition-variable wakeup against the audio thread (Cemu, 2026-11-10:
+// game thread in the audio-done wait, audio thread in its start wait, both predicates satisfied).
+// SoH's C code cannot include coreinit/thread.h (libultra OSThread clash), so the thread lives here.
 namespace {
-OSThread sGameTickThread;
-alignas(16) uint8_t sGameTickStack[1024 * 1024];
+pthread_t sGameTickThread;
+bool sGameTickThreadStarted = false;
 void (*sGameTickEntry)(void) = nullptr;
-int GameTickMain(int, const char**) {
+void* GameTickMain(void*) {
+    OSSetThreadAffinity(OSGetCurrentThread(), OS_THREAD_ATTRIB_AFFINITY_CPU2);
+    OSSetThreadName(OSGetCurrentThread(), "SoH game tick");
+    OSYieldThread(); // let the affinity change take effect before the game loop starts
     sGameTickEntry();
-    return 0;
+    return nullptr;
 }
 } // namespace
 
 extern "C" bool wiiu_start_game_tick_thread(void (*entry)(void)) {
     sGameTickEntry = entry;
-    if (!OSCreateThread(&sGameTickThread, GameTickMain, 0, nullptr, sGameTickStack + sizeof(sGameTickStack),
-                        sizeof(sGameTickStack), 16, OS_THREAD_ATTRIB_AFFINITY_CPU2)) {
-        return false;
-    }
-    OSSetThreadName(&sGameTickThread, "SoH game tick");
-    OSResumeThread(&sGameTickThread);
-    return true;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setstacksize(&attr, 1024 * 1024); // the game loop ran on the main thread's stack before
+    const int rc = pthread_create(&sGameTickThread, &attr, GameTickMain, nullptr);
+    pthread_attr_destroy(&attr);
+    sGameTickThreadStarted = rc == 0;
+    return sGameTickThreadStarted;
 }
 
 extern "C" void wiiu_join_game_tick_thread(void) {
-    OSJoinThread(&sGameTickThread, nullptr);
+    if (sGameTickThreadStarted) {
+        pthread_join(sGameTickThread, nullptr);
+        sGameTickThreadStarted = false;
+    }
 }
 
 #endif
