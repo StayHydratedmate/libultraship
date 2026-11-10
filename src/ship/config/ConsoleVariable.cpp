@@ -51,18 +51,17 @@ float ConsoleVariable::GetFloat(const char* name, float defaultValue) {
 }
 
 const char* ConsoleVariable::GetString(const char* name, const char* defaultValue) {
+    // Returns the variable's own storage, as upstream does. No thread_local copy: elf2rpl cannot relocate TLS
+    // (R_PPC_TPREL16), and string CVars are only replaced from the menu.
     const std::lock_guard<std::mutex> lock(mMutex);
-    static thread_local std::string value;
     auto it = mVariables.find(name);
     auto* variable = it != mVariables.end() ? it->second.get() : nullptr;
 
     if (variable != nullptr && variable->Type == ConsoleVariableType::String) {
-        value = variable->String != nullptr ? variable->String : "";
-        return value.c_str();
+        return variable->String;
     }
 
-    value = defaultValue != nullptr ? defaultValue : "";
-    return value.c_str();
+    return defaultValue;
 }
 
 Color_RGBA8 ConsoleVariable::GetColor(const char* name, Color_RGBA8 defaultValue) {
