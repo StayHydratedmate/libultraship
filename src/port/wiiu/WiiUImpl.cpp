@@ -1322,7 +1322,7 @@ static void ArmCrashTestIfRequested() {
     fclose(marker);
 
     Watchdog::Emit("EXC: CRASHTEST found; DSI scheduled in 1000ms\n");
-    if (!OSCreateThread(&sCrashTestThread, CrashTestMain, 0, nullptr,
+    if (!OSCreateThread(&sCrashTestThread, (OSThreadEntryPointFn)CrashTestMain, 0, nullptr,
                         sCrashTestStack + sizeof(sCrashTestStack), sizeof(sCrashTestStack), 5,
                         (OSThreadAttributes)OS_THREAD_ATTRIB_AFFINITY_CPU1)) {
         Watchdog::Emit("EXC: CRASHTEST thread creation failed\n");
@@ -2420,7 +2420,7 @@ void Start() {
 
     // Core 2. The game loop runs on core 1, so a stalled main thread cannot hold this off.
     // Priority 5 is above the main thread's 16 (lower number wins on Cafe OS).
-    if (!OSCreateThread(&sThread, Main, 0, nullptr, sStack + sizeof(sStack), sizeof(sStack), 5,
+    if (!OSCreateThread(&sThread, (OSThreadEntryPointFn)Main, 0, nullptr, sStack + sizeof(sStack), sizeof(sStack), 5,
                         (OSThreadAttributes)OS_THREAD_ATTRIB_AFFINITY_CPU2)) {
         return;
     }

@@ -78,7 +78,7 @@ __attribute__((constructor)) void WiiUEarlyProbeStart() {
     WHBLogUdpInit();
     WHBLogPrint("EARLYPROBE: alive - global constructors are executing");
 
-    if (OSCreateThread(&sProbeThread, ProbeMain, 0, nullptr, sProbeStack + sizeof(sProbeStack),
+    if (OSCreateThread(&sProbeThread, (OSThreadEntryPointFn)ProbeMain, 0, nullptr, sProbeStack + sizeof(sProbeStack),
                        sizeof(sProbeStack), 20, OS_THREAD_ATTRIB_AFFINITY_CPU2)) {
         OSSetThreadName(&sProbeThread, "EarlyProbe");
         OSResumeThread(&sProbeThread);
