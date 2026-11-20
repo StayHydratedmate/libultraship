@@ -611,13 +611,24 @@ void Gui::DrawMenu() {
 
     ImGui::DockSpace(dockId, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_None | ImGuiDockNodeFlags_NoDockingInCentralNode);
 
-    if (ImGui::IsKeyPressed(TOGGLE_BTN, false) || ImGui::IsKeyPressed(ImGuiKey_Escape, false) ||
-        (ImGui::IsKeyPressed(TOGGLE_PAD_BTN, false) &&
-         Ship::Context::GetInstance()->GetConsoleVariables()->GetInteger(CVAR_IMGUI_CONTROLLER_NAV, 0))) {
-        if ((ImGui::IsKeyPressed(ImGuiKey_Escape, false) || ImGui::IsKeyPressed(TOGGLE_PAD_BTN, false)) && GetMenu()) {
+#ifdef __WIIU__
+    // Custom build: Minus no longer opens the menu on its own. The menu is opened from the
+    // file select Options screen instead. Hidden recovery combo: hold L + R and press Minus.
+    const bool keyToggle = false;
+    const bool escToggle = false;
+    const bool padToggle = ImGui::IsKeyDown(ImGuiKey_GamepadL1) && ImGui::IsKeyDown(ImGuiKey_GamepadR1) &&
+                           ImGui::IsKeyPressed(TOGGLE_PAD_BTN, false);
+#else
+    const bool keyToggle = ImGui::IsKeyPressed(TOGGLE_BTN, false);
+    const bool escToggle = ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+    const bool padToggle = ImGui::IsKeyPressed(TOGGLE_PAD_BTN, false);
+#endif
+
+    if (keyToggle || escToggle ||
+        (padToggle && Ship::Context::GetInstance()->GetConsoleVariables()->GetInteger(CVAR_IMGUI_CONTROLLER_NAV, 0))) {
+        if ((escToggle || padToggle) && GetMenu()) {
             GetMenu()->ToggleVisibility();
-        } else if ((ImGui::IsKeyPressed(TOGGLE_BTN, false) || ImGui::IsKeyPressed(TOGGLE_PAD_BTN, false)) &&
-                   GetMenuBar()) {
+        } else if ((keyToggle || padToggle) && GetMenuBar()) {
             GetMenuBar()->ToggleVisibility();
         }
         Ship::Context::GetInstance()->GetWindow()->GetMouseStateManager()->UpdateMouseCapture();
